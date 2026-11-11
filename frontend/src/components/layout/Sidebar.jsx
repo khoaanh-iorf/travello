@@ -1,23 +1,24 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, MapPin, Tag, BookOpen,
-  Building2, Globe, BarChart2, HeadphonesIcon,
-  Plane, LogOut, CreditCard,
+  Building2, Globe, HeadphonesIcon,
+  Plane, LogOut, CreditCard, Route, CalendarClock,
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { logoutAdmin } from "../../api/authApi";
 
 const NAV_ITEMS = [
   { to: "/admin/dashboard",  icon: LayoutDashboard,   label: "Dashboard" },
-  { to: "/admin/users",      icon: Users,              label: "User Management" },
-  { to: "/admin/locations",  icon: MapPin,             label: "Quản lý địa điểm" },
-  { to: "/admin/promotions", icon: Tag,                label: "Quản lý mã giảm giá" },
-  { to: "/admin/bookings",   icon: BookOpen,           label: "Booking Management" },
-  { to: "/admin/payments",   icon: CreditCard,         label: "Quản lý thanh toán" },
-  { to: "/admin/suppliers",  icon: Building2,          label: "Suppliers" },
-  { to: "/admin/cms",        icon: Globe,              label: "Nội dung trang chủ" },
-  { to: "/admin/reports",    icon: BarChart2,          label: "Reports" },
-  { to: "/admin/support",    icon: HeadphonesIcon,     label: "Hỗ trợ khách hàng" },
+  { to: "/admin/users",      icon: Users,              label: "Người dùng" },
+  { to: "/admin/locations",  icon: MapPin,             label: "Địa điểm" },
+  { to: "/admin/routes",     icon: Route,              label: "Quản lý tuyến" },
+  { to: "/admin/trips",      icon: CalendarClock,      label: "Chuyến chạy" },
+  { to: "/admin/promotions", icon: Tag,                label: "Mã giảm giá" },
+  { to: "/admin/bookings",   icon: BookOpen,           label: "Đặt chỗ" },
+  { to: "/admin/payments",   icon: CreditCard,         label: "Thanh toán" },
+  { to: "/admin/suppliers",  icon: Building2,          label: "Nhà cung cấp" },
+  { to: "/admin/cms",        icon: Globe,              label: "Nội dung trang" },
+  { to: "/admin/support",    icon: HeadphonesIcon,     label: "Hỗ trợ KH" },
 ];
 
 export default function Sidebar() {

@@ -5,11 +5,12 @@ import Pagination from "../../components/ui/Pagination";
 import Modal from "../../components/ui/Modal";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import {
-  getSuppliers, createSupplier, updateSupplier,
+  getSuppliers, getSupplierById, createSupplier, updateSupplier,
   deleteSupplier, updateSupplierStatus,
 } from "../../api/supplierApi";
-import { Search, Plus, Pencil, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Eye } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
 
 const PROVIDER_TYPES = ["", "BUS", "FLIGHT", "TRAIN"];
 
@@ -66,6 +67,8 @@ export default function SupplierListPage() {
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmToggle, setConfirmToggle] = useState(null);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const fetchSuppliers = async (p = 1) => {
@@ -99,10 +102,34 @@ export default function SupplierListPage() {
     catch (err) { alert(err.response?.data?.message || "Xóa thất bại"); }
   };
 
-  const handleToggleStatus = async (s) => {
-    const newStatus = s.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-    try { await updateSupplierStatus(s.id, newStatus); fetchSuppliers(page); }
-    catch (err) { alert(err.response?.data?.message || "Thao tác thất bại"); }
+  const applySupplierStatus = async (supplier, status) => {
+    try {
+      await updateSupplierStatus(supplier.id, status);
+      setConfirmToggle(null);
+      fetchSuppliers(page);
+      if (selectedSupplier?.id === supplier.id) {
+        const response = await getSupplierById(supplier.id);
+        setSelectedSupplier(response.data.data);
+      }
+    } catch (err) { alert(err.response?.data?.message || "Thao tác thất bại"); }
+  };
+
+  const handleToggleStatus = async (supplier) => {
+    const newStatus = supplier.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    if (newStatus === "INACTIVE") {
+      try {
+        const response = await getSupplierById(supplier.id);
+        const details = response.data.data;
+        if (details.routeCount || details.tripCount) {
+          setConfirmToggle({ supplier: details, newStatus });
+          return;
+        }
+      } catch (err) {
+        alert(err.response?.data?.message || "Không thể kiểm tra tuyến và chuyến của nhà cung cấp");
+        return;
+      }
+    }
+    await applySupplierStatus(supplier, newStatus);
   };
 
   const typeColors = { BUS: "bg-yellow-50 text-yellow-700", FLIGHT: "bg-blue-50 text-blue-700", TRAIN: "bg-purple-50 text-purple-700" };
@@ -158,6 +185,20 @@ export default function SupplierListPage() {
                   <td className="py-3 px-3"><StatusBadge status={s.status} /></td>
                   <td className="py-3 px-3">
                     <div className="flex gap-2 items-center">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await getSupplierById(s.id);
+                            setSelectedSupplier(response.data.data);
+                          } catch (err) {
+                            alert(err.response?.data?.message || "Không thể tải chi tiết nhà cung cấp");
+                          }
+                        }}
+                        title="Xem tuyến và chuyến liên quan"
+                        className="text-blue-500 hover:text-blue-700"
+                      >
+                        <Eye size={16} />
+                      </button>
                       <button onClick={() => handleToggleStatus(s)} title={s.status === "ACTIVE" ? "Tắt" : "Bật"}
                         className={s.status === "ACTIVE" ? "text-green-500 hover:text-green-700" : "text-gray-400 hover:text-green-500"}>
                         {s.status === "ACTIVE" ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
@@ -189,7 +230,59 @@ export default function SupplierListPage() {
       {confirmDelete && (
         <ConfirmDialog message={`Xóa nhà cung cấp "${confirmDelete.name}"?`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />
       )}
+      {selectedSupplier && (
+        <Modal title={`Nhà cung cấp: ${selectedSupplier.name}`} onClose={() => setSelectedSupplier(null)} size="lg">
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <p><span className="text-gray-500">Loại:</span> {selectedSupplier.type}</p>
+              <p><span className="text-gray-500">Trạng thái:</span> {selectedSupplier.status}</p>
+              <p><span className="text-gray-500">Số tuyến:</span> {selectedSupplier.routeCount}</p>
+              <p><span className="text-gray-500">Số chuyến:</span> {selectedSupplier.tripCount}</p>
+            </div>
+            <section>
+              <h3 className="font-semibold text-gray-700 mb-2">Tuyến liên quan</h3>
+              {selectedSupplier.routes?.length ? (
+                <div className="divide-y">
+                  {selectedSupplier.routes.map((route) => (
+                    <div key={route.id} className="py-2 text-sm flex justify-between gap-3">
+                      <span>{route.originName || "—"} → {route.destinationName || "—"}</span>
+                      <span className="text-gray-500">{route.serviceType} · {route.status}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400">Chưa có tuyến liên quan.</p>}
+            </section>
+            <section>
+              <h3 className="font-semibold text-gray-700 mb-2">Chuyến chạy liên quan</h3>
+              {selectedSupplier.trips?.length ? (
+                <div className="divide-y">
+                  {selectedSupplier.trips.map((trip) => (
+                    <div key={`${trip.serviceType}-${trip.id}`} className="py-2 text-sm flex justify-between gap-3">
+                      <Link
+                        to={`/admin/trips/${trip.id}?serviceType=${trip.serviceType}`}
+                        onClick={() => setSelectedSupplier(null)}
+                        className="text-primary hover:underline"
+                      >
+                        {trip.tripCode || `Chuyến ${trip.id.slice(-6)}`}
+                      </Link>
+                      <span className="text-gray-500">{trip.status}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400">Chưa có chuyến liên quan.</p>}
+            </section>
+          </div>
+        </Modal>
+      )}
+      {confirmToggle && (
+        <ConfirmDialog
+          message={`Nhà cung cấp này đang liên kết với ${confirmToggle.supplier.routeCount} tuyến và ${confirmToggle.supplier.tripCount} chuyến. Tắt nhà cung cấp? Tuyến, chuyến và booking hiện tại sẽ không bị thay đổi.`}
+          confirmLabel="Tắt nhà cung cấp"
+          danger={false}
+          onCancel={() => setConfirmToggle(null)}
+          onConfirm={() => applySupplierStatus(confirmToggle.supplier, confirmToggle.newStatus)}
+        />
+      )}
     </AdminLayout>
   );
 }
-

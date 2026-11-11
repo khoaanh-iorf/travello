@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-import { DollarSign, BookOpen, Clock, Users } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { DollarSign, BookOpen, Clock, Route, CalendarClock } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import StatCard from "../../components/ui/StatCard";
 import DonutChart from "../../components/charts/DonutChart";
 import BarProgress from "../../components/charts/BarProgress";
-import StatusBadge from "../../components/ui/StatusBadge";
 import { getBookings } from "../../api/bookingApi";
-import axiosClient from "../../api/axiosClient";
+import { getRevenueReport, getStatsReport } from "../../api/reportApi";
+import { getSuppliers } from "../../api/supplierApi";
 import { formatCurrency } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
 
@@ -15,36 +15,85 @@ const SERVICE_TABS = ["All Bookings", "Flight", "Train", "Bus"];
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [revenue, setRevenue] = useState(null);
+  const [suppliers, setSuppliers] = useState([]);
+  const [selectedSupplier, setSelectedSupplier] = useState("");
   const [bookings, setBookings] = useState([]);
+  const [bookingsTotal, setBookingsTotal] = useState(0);
   const [activeTab, setActiveTab] = useState("All Bookings");
   const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    axiosClient.get("/admin/reports/stats").then((r) => setStats(r.data.data));
-    axiosClient.get("/admin/reports/revenue?period=month").then((r) => setRevenue(r.data.data));
-    fetchBookings();
+  const fetchBookings = useCallback(async (service = "", q = "") => {
+    try {
+      const params = { limit: 8 };
+      if (service && service !== "All Bookings") params.service = service.toLowerCase();
+      if (q) params.search = q;
+      const res = await getBookings(params);
+      setBookings(res.data.data.items || []);
+      setBookingsTotal(res.data.data.total || 0);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Không thể tải booking gần đây");
+    }
   }, []);
 
-  const fetchBookings = async (service = "", q = "") => {
-    const params = { limit: 8 };
-    if (service && service !== "All Bookings") params.service = service.toLowerCase();
-    if (q) params.search = q;
-    const res = await getBookings(params);
-    setBookings(res.data.data.items || []);
-  };
+  // Tải danh sách nhà cung cấp để phục vụ lọc doanh thu
+  useEffect(() => {
+    getSuppliers({ limit: 100 })
+      .then((res) => {
+        setSuppliers(res.data.data.items || []);
+      })
+      .catch((requestError) => {
+        setError(requestError.response?.data?.message || "Không thể tải danh sách nhà cung cấp");
+      });
+  }, []);
+
+  // Load all-time paid transactions for the selected supplier.
+  useEffect(() => {
+    let active = true;
+    getRevenueReport("all", selectedSupplier)
+      .then((res) => {
+        if (!active) return;
+        setRevenue(res.data.data);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || "Không thể tải báo cáo doanh thu");
+      });
+    return () => { active = false; };
+  }, [selectedSupplier]);
+
+  // Tải thống kê tổng quan
+  useEffect(() => {
+    let active = true;
+    getStatsReport()
+      .then((res) => {
+        if (!active) return;
+        setStats(res.data.data);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || "Không thể tải thống kê dashboard");
+      });
+    fetchBookings();
+    return () => { active = false; };
+  }, [fetchBookings]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     fetchBookings(tab, search);
   };
 
-  const donutData = revenue
+  // Dữ liệu Donut Chart theo chuẩn Flight, Train, Bus
+  const revenueMatchesSupplier = revenue?.supplier_id === (selectedSupplier || null);
+  const donutData = revenueMatchesSupplier
     ? [
-        { name: "Flight", value: revenue.by_service?.flight?.revenue || 0 },
-        { name: "Train",  value: revenue.by_service?.train?.revenue || 0 },
-        { name: "Bus",    value: revenue.by_service?.bus?.revenue || 0 },
+        { name: "Flight", value: revenue.by_service?.flight?.revenue || 0, count: revenue.by_service?.flight?.count || 0 },
+        { name: "Train",  value: revenue.by_service?.train?.revenue || 0, count: revenue.by_service?.train?.count || 0 },
+        { name: "Bus",    value: revenue.by_service?.bus?.revenue || 0, count: revenue.by_service?.bus?.count || 0 },
       ]
-    : [];
+    : [
+        { name: "Flight", value: 0, count: 0 },
+        { name: "Train",  value: 0, count: 0 },
+        { name: "Bus",    value: 0, count: 0 },
+      ];
 
   const barData = stats
     ? [
@@ -54,65 +103,116 @@ export default function DashboardPage() {
       ]
     : [];
 
+  const totalBookingCount = stats?.total_bookings;
+
   return (
     <AdminLayout title="Không gian quản trị">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Welcome to Travel Mini Admin Portal</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Tổng quan hệ thống</h1>
+        <p className="text-sm text-gray-500 mt-1">Dữ liệu booking, chuyến chạy và tuyến từ các chức năng quản trị.</p>
       </div>
 
+      {error && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Stat Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <StatCard
-          title="Total Revenue"
-          value={formatCurrency(revenue?.total_revenue || 0)}
-          subtitle="Tổng giá trị các chuyến"
+          title="Doanh thu đã thanh toán"
+          value={revenueMatchesSupplier ? formatCurrency(revenue.total_revenue) : "—"}
+          subtitle={`Giao dịch PAID · Toàn thời gian${selectedSupplier ? " · Nhà cung cấp đã chọn" : ""}`}
           icon={DollarSign}
           color="green"
         />
         <StatCard
-          title="Total Bookings"
-          value={revenue?.total_bookings || 0}
-          subtitle="Tổng số chuyến sẵn bế"
+          title="Tổng booking"
+          value={totalBookingCount == null ? "—" : totalBookingCount.toLocaleString("vi-VN")}
+          subtitle="Tất cả trạng thái · Bus, Flight, Train"
           icon={BookOpen}
           color="blue"
         />
         <StatCard
-          title="Pending Bookings"
-          value={stats?.pending_bookings || 0}
-          subtitle="Chuyến đang ngừng hoạt động"
+          title="Booking chờ xử lý"
+          value={stats ? stats.pending_bookings : "—"}
+          subtitle="Trạng thái PENDING"
           icon={Clock}
           color="yellow"
         />
         <StatCard
-          title="Total Customers"
-          value={stats?.total_users || 0}
-          subtitle="Tổng số chỗ cung cấp"
-          icon={Users}
-          color="purple"
+          title="Tổng chuyến chạy"
+          value={stats ? stats.total_trips : "—"}
+          subtitle="Bus, Flight, Train"
+          icon={CalendarClock}
+          color="blue"
+        />
+        <StatCard
+          title="Tuyến đang hoạt động"
+          value={stats ? stats.active_routes : "—"}
+          subtitle="Trạng thái ACTIVE"
+          icon={Route}
+          color="green"
         />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Revenue Reports</h2>
-            <span className="text-xs text-gray-400">Bus / Flight / Train</span>
+      {/* Revenue Reports Card & Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* All-time payment totals by service */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6 sm:p-7 shadow-sm">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
+              Revenue Reports
+            </h2>
+            <div className="flex items-center gap-2.5">
+              {suppliers.length > 0 && (
+                <select
+                  value={selectedSupplier}
+                  onChange={(e) => setSelectedSupplier(e.target.value)}
+                  className="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-3 py-1.5 text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  title="Chọn nhà cung cấp để xem doanh thu"
+                >
+                  <option value="">Tất cả nhà cung cấp</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.type})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="rounded-xl bg-slate-100 text-slate-500 px-3.5 py-1.5 text-xs font-normal">
+                Bus / Flight / Train · Toàn thời gian
+              </span>
+            </div>
           </div>
+
+          {/* Donut Chart Component */}
           <DonutChart data={donutData} />
         </div>
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Trips by Service</h2>
+
+        {/* Chuyến chạy theo dịch vụ */}
+        <div className="card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-800">Chuyến chạy theo dịch vụ</h2>
+            </div>
+            <BarProgress data={barData} />
           </div>
-          <BarProgress data={barData} />
+          <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
+            Dữ liệu tổng hợp từ các bảng trips, flight_trips, rail_trips
+          </div>
         </div>
       </div>
 
       {/* Booking Table */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-800">Booking Management</h2>
+          <div>
+            <h2 className="font-semibold text-gray-800">Booking gần đây</h2>
+            <p className="text-xs text-gray-500 mt-1">{bookingsTotal.toLocaleString("vi-VN")} booking phù hợp với bộ lọc</p>
+          </div>
           <div className="flex items-center gap-2">
             <input
               value={search}
@@ -196,4 +296,3 @@ export default function DashboardPage() {
     </AdminLayout>
   );
 }
-

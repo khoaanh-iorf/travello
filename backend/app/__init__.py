@@ -7,6 +7,8 @@ from app.routes.admin_users import admin_users_bp
 from app.routes.admin_bookings import admin_bookings_bp
 from app.routes.admin_suppliers import admin_suppliers_bp
 from app.routes.admin_locations import admin_locations_bp
+from app.routes.admin_routes import admin_routes_bp
+from app.routes.admin_trips import admin_trips_bp
 from app.routes.admin_promotions import admin_promotions_bp
 from app.routes.admin_reports import admin_reports_bp
 from app.routes.admin_support import admin_support_bp
@@ -30,6 +32,8 @@ def create_app():
     app.register_blueprint(admin_bookings_bp, url_prefix="/api/admin/bookings")
     app.register_blueprint(admin_suppliers_bp, url_prefix="/api/admin/suppliers")
     app.register_blueprint(admin_locations_bp, url_prefix="/api/admin/locations")
+    app.register_blueprint(admin_routes_bp, url_prefix="/api/admin/routes")
+    app.register_blueprint(admin_trips_bp, url_prefix="/api/admin/trips")
     app.register_blueprint(admin_promotions_bp, url_prefix="/api/admin/promotions")
     app.register_blueprint(admin_reports_bp, url_prefix="/api/admin/reports")
     app.register_blueprint(admin_support_bp, url_prefix="/api/admin/support")

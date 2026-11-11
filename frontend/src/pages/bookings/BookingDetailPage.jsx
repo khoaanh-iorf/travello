@@ -71,6 +71,27 @@ export default function BookingDetailPage() {
           </dl>
         </div>
 
+        {booking.payment && (
+          <div className="card">
+            <h2 className="font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100">Thông tin thanh toán</h2>
+            <dl className="space-y-3 text-sm">
+              {[
+                ["Mã giao dịch", booking.payment.transactionCode],
+                ["Trạng thái", booking.payment.status],
+                ["Số tiền", formatCurrency(booking.payment.amount)],
+                ["Tiền tệ", booking.payment.currency],
+                ["Ngày tạo", formatDate(booking.payment.createdAt, "HH:mm dd/MM/yyyy")],
+                ["Ngày thanh toán", formatDate(booking.payment.paidAt, "HH:mm dd/MM/yyyy")],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4">
+                  <dt className="text-gray-400">{label}</dt>
+                  <dd className="font-medium text-gray-800 text-right">{value || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
         {/* Passengers */}
         <div className="card">
           <h2 className="font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100">Hành khách</h2>
@@ -116,4 +137,3 @@ export default function BookingDetailPage() {
     </AdminLayout>
   );
 }
-

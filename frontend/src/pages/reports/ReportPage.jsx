@@ -80,7 +80,7 @@ export default function ReportPage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
           { label: "Tổng doanh thu", value: formatCurrency(revenue?.total_revenue || 0), color: "text-green-600", bg: "bg-green-50" },
-          { label: "Tổng booking", value: revenue?.total_bookings || 0, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Booking đã thanh toán trong kỳ", value: revenue?.total_bookings || 0, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Tổng khách hàng", value: stats?.total_users || 0, color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Tổng chuyến", value: stats?.total_trips || 0, color: "text-yellow-600", bg: "bg-yellow-50" },
         ].map((s) => (
@@ -131,7 +131,7 @@ export default function ReportPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 border-b bg-gray-50/50">
-              {["Dịch vụ", "Số booking", "Doanh thu", "Trung bình/booking"].map(h => (
+              {["Dịch vụ", "Booking PAID", "Doanh thu", "Trung bình/booking"].map(h => (
                 <th key={h} className="py-3 px-4 font-medium">{h}</th>
               ))}
             </tr>
@@ -159,4 +159,3 @@ export default function ReportPage() {
     </AdminLayout>
   );
 }
-
